@@ -5,10 +5,9 @@ import { SearchResult } from 'api/types/SearchResult';
 
 @Service()
 export class ElasticRepository {
-    
-    async dispatchToElasticSearch(event: string, data: any) {
-        const client = new Client({ node: 'http://localhost:10005' });
+    private static client = new Client({ node: 'http://localhost:10005' });
 
+    async dispatchToElasticSearch(event: string, data: any) {
         const doc1: RequestParams.Index = {
             index: 'yes_notes',
             body: {
@@ -17,7 +16,7 @@ export class ElasticRepository {
             }
         }
 
-        await client.index(doc1);
+        await ElasticRepository.client.index(doc1);
     }
 
     async getSearch(keyword: SearchBody): Promise<any> {

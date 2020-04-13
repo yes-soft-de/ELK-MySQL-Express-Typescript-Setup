@@ -50,7 +50,9 @@ first we create the application, we included the dependencies needed bellow.
 
 
 
-Now we can create a Model using the format
+### Express JS Structure
+
+first we can create a Model using the format
 
 ```typescript
 // filepath: src/api/models/notemodule.ts
@@ -90,8 +92,9 @@ export class NotesService {
         note.id = v1();
         // Save the Note to the MySQL Database
         const newNote = await this.notesRepository.save(note);
+        
         // Dispatch Event to Insert into ElasticSearch
-        // TODO: Create the Dispatch
+        this.elasticRepository.dispatchToElasticSearch(events.note.created, newNote);
 
         return newNote;
     }
@@ -133,14 +136,98 @@ to test this I have created 2 scripts for `package.json` which will make this ea
 }
 ```
 
-Ok, create a schema in you database, create a migration, execute it and everything should be cool.
+this way we can use `npm run migration:make` and `npm run migration:exec` to create migrations and execute it on the Database, respectively. 
+
+Ok, create a schema in you database -- in `phpmyadmin` or `mysql workbench` or `mysql` for that matter, then create a migration, execute it and everything should be cool.
+
+### Adding Express Repository
+
+we can do this by creating a static client in the repository, and connect to Elasticsearch using it.
+
+```typescript
+@Service()
+export class ElasticRepository {
+    // I'm using 10005 port for Elastic Search on my setup. change this to your config.
+    private static client = new Client({ node: 'http://localhost:10005' });
+
+    async dispatchToElasticSearch(event: string, data: any) {
+        const doc1: RequestParams.Index = {
+            index: 'yes_notes',
+            body: {
+                event,
+                data
+            }
+        }
+
+        await ElasticRepository.client.index(doc1);
+    }
+
+    async getSearch(keyword: SearchBody): Promise<any> {
+        const client = new Client({ node: 'http://localhost:10005' });
+        const searchParams: RequestParams.Search<SearchBody> = {
+            index: 'yes_notes',
+            body: keyword
+        }
+
+        const searchResult: ApiResponse<SearchResult<any>> = await client.search(searchParams);
+        return searchResult.body;
+    }
+}
+```
 
 
 
-### Integrating Elastic Search
+## Searching 
 
-First we should implement an event dispatcher, to do that I used a code provided by w3tech in their old boilerplate, 
+we can do this by simply creating a search service and connect a search controller to it.
 
+### Search Service
 
+```typescript
+@Service()
+export class SearchService {
+    
+    constructor(@Service() private SearchRepository: ElasticRepository){
+    }
 
- 
+    search(keyword: string): Promise<any> {
+        const searchParams: SearchBody = {
+            query: {
+                // If You want to search something else, change this.
+                match: { "data.note": keyword }
+            }
+        }
+        return this.SearchRepository.getSearch(searchParams);
+    }
+}
+```
+
+it will just search, so this is the sole method needed in this service.
+
+### Search Controller
+
+```typescript
+@JsonController('/search')
+export class SearchController {
+
+    @Inject()
+    private searchService = Container.get(SearchService);
+
+    // I choosed this method, to be compatible with OpenSearch, you can post if you want
+    @Get()
+    search(@QueryParam("q") q: string): Promise<any> {
+        return this.searchService.search(q);
+    }
+}
+```
+
+### Types
+
+since getting a search result is fully defined in Elastic Search Client, we can use that. 
+
+there is nothing interesting though about this so I included it in `api/types` folder, so just make sure to check it out.
+
+## The End
+
+Now you can test this setup by creating notes and searching through them. 
+
