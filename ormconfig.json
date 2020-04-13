@@ -1,0 +1,15 @@
+[{
+    "name": "default",
+    "type": "mysql",
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "M0h@mm@d",
+    "database": "notes",
+    "entities": ["src/api/models/*.ts"],
+    "migrationsTableName": "custom_migration_table",
+    "migrations": ["src/api/migrations/*.ts"],
+    "cli": {
+        "migrationsDir": "migration"
+    }
+}]
